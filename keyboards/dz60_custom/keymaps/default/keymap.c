@@ -7,63 +7,86 @@ enum custom_keycodes {
     TEST
 };
 
-#define QUEUE_LEN 128
-
 struct key_event {
-    uint16_t keycode;
-    keyrecord_t record;
+    uint8_t is_pressed : 1;
+    uint8_t keycode    : 7;
 };
 
-struct queue {
-    struct key_event data[QUEUE_LEN];
+#define NO_EVENT ((struct key_event){ .is_pressed = 0, .keycode = 0 })
+
+#define BUF_LEN 2048
+typedef struct _ring_buf {
+    struct key_event events[BUF_LEN];
     uint16_t head;
     uint16_t length;
-};
+} ring_buf;
 
-static void enqueue(struct queue *q, struct key_event *item) {
-    struct key_event copy = *item;
-
-    if (q->length < QUEUE_LEN) {
-        uint16_t slot = (q->head + q->length) % QUEUE_LEN;
-        q->data[slot] = copy;
-        q->length++;
+static void rb_push_back(ring_buf *rb, struct key_event event) {
+    if (rb->length < BUF_LEN) {
+        uint16_t slot = (rb->head + rb->length) % BUF_LEN;
+        rb->events[slot] = event;
+        rb->length++;
     } else {
-        q->data[q->head] = copy;
-        q->head = (q->head + 1) % QUEUE_LEN;
+        rb->events[rb->head] = event;
+        rb->head = (rb->head + 1) % BUF_LEN;
     }
 
 }
 
-/* static struct key_event dequeue(struct queue *q) { */
-/*     if (q->length > 0) { */
-/*         struct key_event item = q->data[q->head]; */
-
-/*         if (q->head == QUEUE_LEN - 1) { */
-/*             q->head = 0; */
-/*         } else { */
-/*             q->head++; */
-/*         } */
-
-/*         q->length--; */
-
-/*         return item; */
+/* static struct key_event rb_pop_front(ring_buf *rb) { */
+/*     if (rb->length <= 0) { */
+/*         return NO_EVENT; */
 /*     } */
 
-/*     return (struct key_event){ 0 }; */
+/*     struct key_event event = rb->events[rb->head]; */
+
+/*     if (rb->head == BUF_LEN - 1) { */
+/*         q->head = 0; */
+/*     } else { */
+/*         q->head++; */
+/*     } */
+
+/*     q->length--; */
+
+/*     return event; */
 /* } */
 
-struct queue keylog = { 0 };
+static struct key_event rb_peek_at(ring_buf *rb, uint16_t index) {
+    if (index < 0 || index >= rb->length) {
+        return NO_EVENT;
+    }
+
+    uint16_t rb_idx = (rb->head + index) % BUF_LEN;
+
+    dprintf("peeking at index %d\n", rb_idx);
+
+    return rb->events[rb_idx];
+}
+
+
+ring_buf keylog = { .head = 0, .length = 0 };
 
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     dprintf("keycode: 0x%04X\n", keycode);
 
+    if (keycode >= KC_A && keycode <= KC_KP_EQUAL) {
+        dprintf("logging...\n");
+        struct key_event event = {
+            .is_pressed = record->event.pressed,
+            .keycode = keycode
+        };
+
+        rb_push_back(&keylog, event);
+    }
+
     switch (keycode) {
     case DUMP:
         if (record->event.pressed) {
             for (uint16_t i = 0; i < keylog.length; i++) {
-                struct key_event event = keylog.data[i];
-                if (event.record.event.pressed) {
+                struct key_event event = rb_peek_at(&keylog, i);
+
+                if (event.is_pressed) {
                     register_code16(event.keycode);
                 } else {
                     unregister_code16(event.keycode);
@@ -80,11 +103,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             unregister_code16(0x0204);
 
         break;
-    default: ;
-        struct key_event event = { .keycode = keycode, .record = *record };
-        enqueue(&keylog, &event);
-        break;
-    }
+   }
 
     return true;
 }
@@ -99,7 +118,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         KC_TAB,  KC_Q,    KC_W,    KC_E,    KC_R,    KC_T,    KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_LBRC, KC_RBRC, KC_BSLS,
         KC_CAPS, KC_A,    KC_S,    KC_D,    KC_F,    KC_G,    KC_H,    KC_J,    KC_K,    KC_L,    KC_SCLN, KC_QUOT,          KC_ENT,
         KC_LSFT, XXXXXXX, KC_Z,    KC_X,    KC_C,    KC_V,    KC_B,    KC_N,    KC_M,    KC_COMM, KC_DOT,  KC_SLSH, KC_RSFT, XXXXXXX,
-        KC_LCTL, KC_LALT, KC_LGUI,                   KC_SPC,  KC_SPC,  KC_SPC,           KC_RGUI, TEST   , XXXXXXX, MO(1),   DUMP
+        KC_LCTL, RESET,   KC_LGUI,                   KC_SPC,  KC_SPC,  KC_SPC,           KC_RGUI, TEST   , XXXXXXX, MO(1),   DUMP
     ),
 
     LAYOUT(
