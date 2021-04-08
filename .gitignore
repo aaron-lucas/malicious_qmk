@@ -64,6 +64,9 @@ doxygen/
 *.gif
 *.jpg
 
+# except in assets
+!assets/*
+
 # things travis sees
 secrets.tar
 id_rsa_*
@@ -77,3 +80,6 @@ __pycache__
 
 # Allow to exist but don't include it in the repo
 user_song_list.h
+
+# Symlinks
+custom
