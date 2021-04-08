@@ -64,6 +64,9 @@ doxygen/
 *.gif
 *.jpg
 
+# except in assets
+!assets/*
+
 # things travis sees
 secrets.tar
 id_rsa_*
