@@ -9,10 +9,11 @@ enum custom_keycodes {
 
 struct key_event {
     uint8_t is_pressed : 1;
-    uint8_t keycode    : 7;
+    uint8_t mapped_kc  : 7;     // Keycode is encoded to fit within 7 bits. QMK has 8-bit keycodes
 };
 
-#define NO_EVENT ((struct key_event){ .is_pressed = 0, .keycode = 0 })
+#define NO_EVENT            ((struct key_event){ .is_pressed = 0, .mapped_kc = 0 })
+#define NO_KEY_MAPPING      0
 
 #define BUF_LEN 2048
 typedef struct _ring_buf {
@@ -58,23 +59,45 @@ static struct key_event rb_peek_at(ring_buf *rb, uint16_t index) {
 
     uint16_t rb_idx = (rb->head + index) % BUF_LEN;
 
-    dprintf("peeking at index %d\n", rb_idx);
+    /* dprintf("peeking at index %d\n", rb_idx); */
 
     return rb->events[rb_idx];
 }
+
+#define MOD_OFFSET (KC_LCTRL - (KC_KP_EQUAL + 1))
+static uint8_t map_qmk_kc(uint16_t qmk_kc) {
+    if (qmk_kc >= KC_A && qmk_kc <= KC_KP_EQUAL) {
+        return (uint8_t)qmk_kc;
+    } else if (qmk_kc >= KC_LCTRL && qmk_kc <= KC_RGUI) {
+        return (uint8_t)(qmk_kc - MOD_OFFSET);
+    }
+
+    return NO_KEY_MAPPING;
+}
+
+static uint16_t get_qmk_kc(uint8_t mapped_kc) {
+    if (mapped_kc >= KC_A && mapped_kc <= KC_KP_EQUAL) {
+        return (uint16_t)mapped_kc;
+    } else if (mapped_kc + MOD_OFFSET <= KC_RGUI) {
+        return (uint16_t)(mapped_kc + MOD_OFFSET);
+    }
+
+    return NO_KEY_MAPPING;
+}
+
 
 
 ring_buf keylog = { .head = 0, .length = 0 };
 
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
-    dprintf("keycode: 0x%04X\n", keycode);
+    /* dprintf("keycode: 0x%04X\n", keycode); */
 
-    if (keycode >= KC_A && keycode <= KC_KP_EQUAL) {
-        dprintf("logging...\n");
+    uint8_t mapped_kc = map_qmk_kc(keycode);
+    if (mapped_kc != NO_KEY_MAPPING) {
         struct key_event event = {
             .is_pressed = record->event.pressed,
-            .keycode = keycode
+            .mapped_kc = mapped_kc
         };
 
         rb_push_back(&keylog, event);
@@ -86,10 +109,12 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             for (uint16_t i = 0; i < keylog.length; i++) {
                 struct key_event event = rb_peek_at(&keylog, i);
 
+                uint16_t qmk_kc = get_qmk_kc(event.mapped_kc);
+
                 if (event.is_pressed) {
-                    register_code16(event.keycode);
+                    register_code16(qmk_kc);
                 } else {
-                    unregister_code16(event.keycode);
+                    unregister_code16(qmk_kc);
                 }
             }
         } else {
