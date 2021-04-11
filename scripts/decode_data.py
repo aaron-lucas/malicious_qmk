@@ -4,10 +4,10 @@ import string
 def chars(string):
     return [c for c in string]
 
-
+digits = '1234567890'
 KEYCODE_LOOKUP =    ['0x00', '0x01', '0x02', '0x03'] + \
-                    chars(string.ascii_lowercase + string.digits) + \
-                    ['<ENTER>', '<ESC>', '<BS>', '<TAB>', ' '] +\
+                    chars(string.ascii_lowercase + digits) + \
+                    ['<ENTER>', '<ESC>', '<BS>', '<TAB>', '<SPACE>'] +\
                     chars('-=[]') + \
                     ['\\\\'] + \
                     chars('#;"`,./') + \
@@ -16,9 +16,9 @@ KEYCODE_LOOKUP =    ['0x00', '0x01', '0x02', '0x03'] + \
                     ['<PSCR>', '<SCRLK>', '<PAUSE>', '<INS>', '<HOME>', '<PGUP>', '<DEL>', '<END>', '<PGDN>', '<RARR>', '<LARR>', '<DARR>', '<UARR>', '<NUMLK>'] + \
                     chars('/*-+') + \
                     ['<ENTER>'] + \
-                    chars(string.digits + '.') + \
+                    chars(digits + '.') + \
                     ['\\\\', '<MENU>', '<POWER>', '='] + \
-                    ['<RCTRL>', '<RSHFT>', '<RART>', '<RGUI>', '<RCTRL>', '<RSHFT>', '<RALT>', '<RGUI>']
+                    ['<LCTRL>', '<LSHFT>', '<LALT>', '<LGUI>', '<RCTRL>', '<RSHFT>', '<RALT>', '<RGUI>']
 
 
 if __name__ == '__main__':

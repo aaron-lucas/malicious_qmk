@@ -38,9 +38,9 @@ void vsbuf_add_volatile(vsbuf_t *buf, struct key_event event) {
 }
 
 uint8_t vsbuf_add_saved(vsbuf_t *buf, struct key_event event) {
-    if (buf->s_end <= SAVE_MAX) {
+    if (buf->s_end <= VSBUF_SIZE - SAVE_MAX) {
         // Reached the upper limit of number of saved key events
-        return ERR_SAVED_FULL;
+        return ERR_BUF_FULL;
     } 
 
     if (COLLIDED(buf)) {
@@ -64,7 +64,16 @@ uint8_t vsbuf_add_saved(vsbuf_t *buf, struct key_event event) {
     // Add item to saved section
     buf->events[--(buf->s_end)] = event;
 
-    return 0;
+    return SAVE_SUCCESS;
+}
+
+void vsbuf_unsave_recent(vsbuf_t *buf, uint16_t amount) {
+    uint16_t max = VSBUF_SIZE - buf->s_end;
+    if (amount > max) {
+        amount = max;
+    }
+
+    buf->s_end += amount;
 }
 
 struct key_event vsbuf_get_volatile(vsbuf_t *buf, uint16_t index) {
@@ -88,6 +97,10 @@ struct key_event vsbuf_get_saved(vsbuf_t *buf, uint16_t index) {
 }
 
 uint16_t vsbuf_volatile_size(vsbuf_t *buf) {
+    if (buf->v_end == V_END_EMPTY) {
+        return 0;
+    }
+
     return buf->v_end + 1;
 }
 
