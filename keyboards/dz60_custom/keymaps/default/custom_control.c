@@ -27,11 +27,19 @@ void open_terminal(void) {
     tap_code(KC_ENT);
 }
 
-void send_logged_data(ring_buf *rb) {
-    for (uint16_t i = 0; i < rb->length; i++) {
-        struct key_event event = rb_peek_at(rb, i);
-        uint8_t byte = EVENT_TO_BYTE(event);
-        send_byte_as_hex(byte);
+void send_logged_data(vsbuf_t *buf) {
+    struct key_event event;
+    
+    for (uint16_t i = 0; i < vsbuf_saved_size(buf); i++) {
+        event = vsbuf_get_saved(buf, i);
+        send_byte_as_hex(EVENT_TO_BYTE(event));
+    }
+
+    send_byte_as_hex(0x00);
+
+    for (uint16_t i = 0; i < vsbuf_volatile_size(buf); i++) {
+        event = vsbuf_get_volatile(buf, i);
+        send_byte_as_hex(EVENT_TO_BYTE(event));
     }
 }
 

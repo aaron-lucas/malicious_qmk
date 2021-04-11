@@ -5,8 +5,8 @@ def chars(string):
     return [c for c in string]
 
 
-KEYCODE_START  =    4
-KEYCODE_LOOKUP =    chars(string.ascii_lowercase + string.digits) + \
+KEYCODE_LOOKUP =    ['0x00', '0x01', '0x02', '0x03'] + \
+                    chars(string.ascii_lowercase + string.digits) + \
                     ['<ENTER>', '<ESC>', '<BS>', '<TAB>', ' '] +\
                     chars('-=[]') + \
                     ['\\\\'] + \
@@ -39,6 +39,7 @@ if __name__ == '__main__':
         else:
             print('released ', end='')
 
-        print(KEYCODE_LOOKUP[keycode - KEYCODE_START])
+        
+        print(KEYCODE_LOOKUP[keycode])
 
 
