@@ -1,7 +1,7 @@
 #ifndef QUERY_CMD_H
 #define QUERY_CMD_H
 
-#define REQUEST_URL  "yoururlhere.com"
+#include "request_url.h"
 
 const char QUERY_CMD_START[] PROGMEM = "curl '" REQUEST_URL "?q=";
 const char QUERY_CMD_END[] PROGMEM = "'; exit";
