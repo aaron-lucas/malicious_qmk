@@ -7,7 +7,7 @@ struct key_event{
     uint8_t is_pressed : 1;
 };
 
-#define NO_EVENT                (struct key_event){ 0, 0 }
+#define NO_EVENT                ((struct key_event){ 0, 0 })
 
 // Shift constants for bitfields
 #define EVENT_KEYCODE_S         0
