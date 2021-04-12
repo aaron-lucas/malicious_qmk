@@ -65,7 +65,7 @@ doxygen/
 *.jpg
 
 # except in assets
-!assets/*
+!assets/*.png
 
 # things travis sees
 secrets.tar
